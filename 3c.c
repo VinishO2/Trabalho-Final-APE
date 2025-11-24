@@ -1,6 +1,7 @@
 #include <stdio.h> // Biblioteca padrão de entrada e saída
 #include <stdlib.h> // Biblioteca padrão para alocação de memória
 #include <string.h> // Biblioteca para manipulação de strings
+#include <locale.h>
 
 //---------------------------------------------------------------
 // ESTRUTURAS
@@ -561,12 +562,150 @@ void listarCursosSemAlunos() {
     }
 }
 
+//---------------------------------------------------------------
+// SALVAR OS DADOS EM ARQUIVOS
+//---------------------------------------------------------------
+void salvarDados(){
+    FILE *arquivo;
+
+    // Salvar alunos
+    arquivo = fopen("alunos.txt", "wb");
+    if (arquivo){
+        Aluno *atual = listaAlunos;
+        while(atual != NULL){
+            // Salva cada aluno no arquivo
+            fwrite(atual, sizeof(Aluno), 1, arquivo);
+            atual = atual->prox;
+        }
+        fclose(arquivo);
+    } else {
+        printf("Erro ao salvar alunos. \n");
+    }
+
+    //Salvar cursos
+    arquivo = fopen("cursos.txt", "wb");
+    if (arquivo){
+        Curso *atual = listaCursos;
+        while(atual != NULL){
+            // Salva cada curso no arquivo
+            fwrite(atual, sizeof(Curso), 1, arquivo);
+            atual = atual->prox;
+        }
+        fclose(arquivo);
+    } else {
+        printf("Erro ao salvar cursos. \n");
+    }
+
+    //Salvar matrículas
+    //Não salvar os ponteiros
+    //Salva os identificadores
+    arquivo = fopen("matriculas.txt", "wb");
+    if(arquivo){
+        Matricula *atual = listaMatriculas;
+        struct DadosMatricula
+        {
+            int numero;
+            char nomeAluno[50];
+            char codigoCurso[10];
+        }temp; // Estrutura temporária para salvar os dados sem ponteiros
+
+        while (atual != NULL)
+        {
+            temp.numero = atual->numero;
+            strcpy(temp.nomeAluno, atual->aluno->nome); // Copia o nome do aluno
+            strcpy(temp.codigoCurso, atual->curso->codigo); // Copia o código do curso
+
+            fwrite(&temp, sizeof(struct DadosMatricula), 1, arquivo); // Salva a estrutura temporária
+            atual = atual->prox;
+        }
+        fclose(arquivo);
+    } else {
+        printf("Erro ao salvar matrículas. \n");
+    }
+
+    printf("Dados salvos com sucesso!\n");
+}
+
+void carregarTudo(){
+    FILE *arquivo;
+
+    // Carregar alunos
+    arquivo = fopen("alunos.txt", "rb");
+    if (arquivo){
+        Aluno temp;
+        while(fread(&temp, sizeof(Aluno), 1, arquivo)){
+            // Cria um novo nó para o aluno
+            Aluno *novo = (Aluno*)malloc(sizeof(Aluno));
+            // Copia os dados lidos para o novo nó
+            *novo = temp;
+            // Refaz o encadeamento (insere no início da lista)
+            // Aqui inserindo no iniciio para simplificar
+            novo->prox = listaAlunos;
+            listaAlunos = novo;
+        }
+        fclose(arquivo);
+    }
+
+    // Carregar cursos
+    arquivo = fopen("cursos.txt", "rb");
+    if (arquivo){
+        Curso temp;
+        while(fread(&temp, sizeof(Curso), 1, arquivo)){
+            // Cria um novo nó para o curso
+            Curso *novo = (Curso*)malloc(sizeof(Curso));
+            // Copia os dados lidos para o novo nó
+            *novo = temp;
+            // Refaz o encadeamento (insere no início da lista)
+            // Aqui inserindo no iniciio para simplificar
+            novo->prox = listaCursos;
+            listaCursos = novo;
+        }
+        fclose(arquivo);
+    }
+
+    // Carregar matrículas
+    arquivo = fopen("matriculas.txt", "rb");
+    if (arquivo){
+        struct DadosMatricula
+        {
+            int numero;
+            char nomeAluno[50];
+            char codigoCurso[10];
+        }temp; // Estrutura temporária para ler os dados sem ponteiros
+
+        int maiorMatricula = 0;
+
+        while (fread(&temp, sizeof(struct DadosMatricula), 1, arquivo)){
+            // Cria um novo nó para a matrícula
+            Aluno *a = buscarAluno(temp.nomeAluno);
+            Curso *c = buscarCurso(temp.codigoCurso);
+            if (a && c) {
+                Matricula *nova = (Matricula*)malloc(sizeof(Matricula) );
+                nova->numero = temp.numero;
+                nova->aluno = a;
+                nova->curso = c;
+                nova->prox = listaMatriculas;
+                listaMatriculas = nova;
+
+                // Atualiza o maior número de matrícula
+                if (temp.numero >= maiorMatricula)
+                {
+                    maiorMatricula = temp.numero;
+                }
+            }
+        }
+        if(maiorMatricula > 0) geradorMatriculas = maiorMatricula + 1; // Atualiza o gerador de matrículas
+        
+        fclose(arquivo);
+    }
+}
+
 
 //---------------------------------------------------------------
 // MENU PRINCIPAL
 //---------------------------------------------------------------
 void menu() {
-    printf("--- MENU ---\n");
+    printf("\n\n--- MENU ---\n");
     printf("1. Cadastrar aluno\n");
     printf("2. Procurar aluno\n");
     printf("3. Atualizar aluno\n");
@@ -589,11 +728,16 @@ void menu() {
     printf("20. Listar todas as matrículas de um curso\n");
     printf("21. Listar alunos cadastrados sem cursos\n");
     printf("22. Listar cursos cadastrados sem alunos\n");
-    printf("23. Sair\n");
+    printf("23. Sair\n\n");
     printf("Escolha: ");
 }
 
 int main() {
+    system ("chcp 65001 > nul");
+    setlocale(LC_ALL, "pt_BR.UTF-8");
+
+    carregarTudo();
+
     int opcao;
 
 do {
@@ -623,7 +767,9 @@ do {
             case 20: listarMatriculasDeUmCurso(); break;
             case 21: listarAlunosSemCursos(); break;
             case 22: listarCursosSemAlunos(); break;
-            case 23: printf("Saindo...\n"); break;
+            case 23: 
+                    salvarDados();
+                    printf("Saindo...\n"); break;
             default: reportar_erro("Opção inválida."); break;
         }
     } while (opcao != 23);
